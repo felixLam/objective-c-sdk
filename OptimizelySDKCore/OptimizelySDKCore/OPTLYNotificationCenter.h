@@ -21,7 +21,9 @@
 /// Enum representing notification types.
 typedef NS_ENUM(NSUInteger, OPTLYNotificationType) {
     OPTLYNotificationTypeActivate,
-    OPTLYNotificationTypeTrack
+    OPTLYNotificationTypeTrack,
+    OPTLYNotificationTypeIsFeatureEnabled,
+    OPTLYNotificationTypeGetFeatureVariable
 };
 
 typedef void (^ActivateListener)(OPTLYExperiment * _Nonnull experiment,
@@ -36,6 +38,20 @@ typedef void (^TrackListener)(NSString * _Nonnull eventKey,
                               NSDictionary * _Nullable eventTags,
                               NSDictionary<NSString *,NSObject *> * _Nonnull event);
 
+typedef void (^FeatureEnabledListener)(NSString * _Nonnull featureKey,
+                                       NSString * _Nonnull userId,
+                                       NSDictionary<NSString *, NSObject *> * _Nullable attributes,
+                                       BOOL featureEnabled,
+                                       NSDictionary<NSString *,NSObject *> * _Nullable event);
+
+typedef void (^GetFeatureVariableListener)(NSString * _Nonnull featureKey,
+                                           NSString * _Nonnull variableKey,
+                                           NSString * _Nonnull userId,
+                                           NSDictionary<NSString *, NSObject *> * _Nullable attributes,
+                                           BOOL featureEnabled,
+                                           NSString * _Nullable variableValue,
+                                           NSString * _Nullable variableType);
+
 typedef void (^GenericListener)(NSDictionary * _Nonnull args);
 
 typedef NSMutableDictionary<NSNumber *, GenericListener > OPTLYNotificationHolder;
@@ -47,6 +63,11 @@ extern NSString * _Nonnull const OPTLYNotificationAttributesKey;
 extern NSString * _Nonnull const OPTLYNotificationEventKey;
 extern NSString * _Nonnull const OPTLYNotificationEventTagsKey;
 extern NSString * _Nonnull const OPTLYNotificationLogEventParamsKey;
+extern NSString * _Nonnull const OPTLYNotificationFeatureKey;
+extern NSString * _Nonnull const OPTLYNotificationVariableKey;
+extern NSString * _Nonnull const OPTLYNotificationFeatureEnabled;
+extern NSString * _Nonnull const OPTLYNotificationVariableValue;
+extern NSString * _Nonnull const OPTLYNotificationVariableType;
 
 @interface OPTLYNotificationCenter : NSObject
 
@@ -76,6 +97,22 @@ extern NSString * _Nonnull const OPTLYNotificationLogEventParamsKey;
  * @return the notification id used to remove the notification. It is greater than 0 on success.
  */
 - (NSInteger)addTrackNotificationListener:(TrackListener _Nonnull )trackListener;
+    
+/**
+ * Add a featureEnabled notification listener to the notification center.
+ *
+ * @param featureEnabledListener - Notification to add.
+ * @return the notification id used to remove the notification. It is greater than 0 on success.
+ */
+- (NSInteger)addFeatureEnabledNotificationListener:(FeatureEnabledListener _Nonnull )featureEnabledListener;
+    
+/**
+ * Add a getFeatureVariable notification listener to the notification center.
+ *
+ * @param getFeatureVariableListener - Notification to add.
+ * @return the notification id used to remove the notification. It is greater than 0 on success.
+ */
+- (NSInteger)addGetFeatureVariableNotificationListener:(GetFeatureVariableListener _Nonnull )getFeatureVariableListener;
 
 /**
  * Remove the notification listener based on the notificationId passed back from addNotification.

@@ -86,7 +86,12 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
                       userId:(NSString *)userId
                   attributes:(NSDictionary<NSString *, NSObject *> *)attributes
                     callback:(void (^)(NSError *))callback;
-- (OPTLYVariation *)sendImpressionEventFor:(OPTLYExperiment *)experiment
+- (NSDictionary *)createImpressionEventFor:(NSString *)userId
+                                experiment:(OPTLYExperiment *)experiment
+                                 variation:(OPTLYVariation *)variation
+                                attributes:(NSDictionary<NSString *, NSObject *> *)attributes;
+- (OPTLYVariation *)sendImpressionEventFor:(NSDictionary *)eventParams
+                                experiment:(OPTLYExperiment *)experiment
                                  variation:(OPTLYVariation *)variation
                                     userId:(NSString *)userId
                                 attributes:(NSDictionary<NSString *, NSObject *> *)attributes
@@ -300,7 +305,8 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     OPTLYVariation *variation = [self.optimizely variation:kExperimentKey userId:kUserId attributes:self.attributes];
     
     id optimizelyMock = OCMPartialMock(self.optimizely);
-    OCMStub([optimizelyMock sendImpressionEventFor:experiment
+    OCMStub([optimizelyMock sendImpressionEventFor:[OCMArg any]
+                                        experiment:experiment
                                          variation:variation
                                             userId:kUserId
                                         attributes:self.attributes
@@ -315,7 +321,8 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     
     XCTAssertNil(sentVariation, @"activate an experiment with no impresion event should return nil");
     
-    OCMVerify([optimizelyMock sendImpressionEventFor:experiment
+    OCMVerify([optimizelyMock sendImpressionEventFor:[OCMArg any]
+                                          experiment:experiment
                                            variation:variation
                                               userId:kUserId
                                           attributes:self.attributes
@@ -629,7 +636,8 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     
     OCMStub([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]).andReturn(decision);
     // SendImpressionEvent() does not get called.
-    OCMReject([optimizelyMock sendImpressionEventFor:decision.experiment variation:decision.variation userId:kUserId attributes:nil callback:nil]);
+    NSDictionary *impressionEvent = [optimizelyMock createImpressionEventFor:kUserId experiment:decision.experiment variation:decision.variation attributes:nil];
+    OCMReject([optimizelyMock sendImpressionEventFor:impressionEvent experiment:decision.experiment variation:decision.variation userId:kUserId attributes:nil callback:nil]);
     
     XCTAssertTrue([self.optimizely isFeatureEnabled:featureFlagKey userId:kUserId attributes:nil], @"should return true for enabled featureFlag");
     
@@ -654,7 +662,7 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     XCTAssertTrue([self.optimizely isFeatureEnabled:featureFlagKey userId:kUserId attributes:nil], @"should return true for enabled featureFlag");
     
     // SendImpressionEvent() does get called.
-    OCMVerify([optimizelyMock sendImpressionEventFor:decision.experiment variation:decision.variation userId:kUserId attributes:nil callback:nil]);
+    OCMVerify([optimizelyMock sendImpressionEventFor:[OCMArg any] experiment:decision.experiment variation:decision.variation userId:kUserId attributes:nil callback:nil]);
     
     OCMVerify([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]);
     [decisionServiceMock stopMocking];
@@ -676,7 +684,7 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     XCTAssertFalse([self.optimizely isFeatureEnabled:featureFlagKey userId:kUserId attributes:nil], @"should return false for disabled featureFlag");
     
     // SendImpressionEvent() does get called.
-    OCMVerify([optimizelyMock sendImpressionEventFor:decision.experiment variation:decision.variation userId:kUserId attributes:nil callback:nil]);
+    OCMVerify([optimizelyMock sendImpressionEventFor:[OCMArg any] experiment:decision.experiment variation:decision.variation userId:kUserId attributes:nil callback:nil]);
     
     OCMVerify([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]);
     [decisionServiceMock stopMocking];
@@ -1562,7 +1570,8 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     }];
     
     // SendImpressionEvent() does not get called.
-    OCMReject([optimizelyMock sendImpressionEventFor:experiment variation:variation userId:@"test_user" attributes:userAttributes callback:[OCMArg any]]);
+    NSDictionary *impressionEvent = [optimizelyMock createImpressionEventFor:@"test_user" experiment:experiment variation:variation attributes:userAttributes];
+    OCMReject([optimizelyMock sendImpressionEventFor:impressionEvent experiment:experiment variation:variation userId:@"test_user" attributes:userAttributes callback:[OCMArg any]]);
     [optimizelyMock stopMocking];
     
     XCTAssertNil(_variation);

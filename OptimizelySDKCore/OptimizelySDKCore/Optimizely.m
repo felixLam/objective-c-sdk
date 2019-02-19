@@ -147,7 +147,9 @@ NSString *const OptimizelyNotificationsUserDictionaryExperimentVariationMappingK
     
     // send impression event
     __weak typeof(self) weakSelf = self;
-    OPTLYVariation *sentVariation = [self sendImpressionEventFor:experiment
+    NSDictionary *eventParams = [self createImpressionEventFor:userId experiment:experiment variation:variation attributes:attributes];
+    OPTLYVariation *sentVariation = [self sendImpressionEventFor:eventParams
+                                                      experiment:experiment
                                                        variation:variation
                                                           userId:userId
                                                       attributes:attributes
@@ -237,10 +239,11 @@ NSString *const OptimizelyNotificationsUserDictionaryExperimentVariationMappingK
     }
     
     OPTLYFeatureDecision *decision = [self.decisionService getVariationForFeature:featureFlag userId:userId attributes:attributes];
-    
+    NSDictionary *eventParams;
     if (decision) {
         if ([decision.source isEqualToString:DecisionSourceExperiment]) {
-            [self sendImpressionEventFor:decision.experiment variation:decision.variation userId:userId attributes:attributes callback:nil];
+            eventParams = [self createImpressionEventFor:userId experiment:decision.experiment variation:decision.variation attributes:attributes];
+            [self sendImpressionEventFor:eventParams experiment:decision.experiment variation:decision.variation userId:userId attributes:attributes callback:nil];
         } else {
             NSString *logMessage = [NSString stringWithFormat:OPTLYLoggerMessagesFeatureEnabledNotExperimented, userId, featureKey];
             [self.logger logMessage:logMessage withLevel:OptimizelyLogLevelInfo];
@@ -255,6 +258,15 @@ NSString *const OptimizelyNotificationsUserDictionaryExperimentVariationMappingK
     
     NSString *logMessage = [NSString stringWithFormat:OPTLYLoggerMessagesFeatureDisabled, featureKey, userId];
     [self.logger logMessage:logMessage withLevel:OptimizelyLogLevelInfo];
+    
+    NSMutableDictionary *args = [[NSMutableDictionary alloc] init];
+    [args setValue:featureKey forKey:OPTLYNotificationFeatureKey];
+    [args setValue:userId forKey:OPTLYNotificationUserIdKey];
+    [args setValue:attributes forKey:OPTLYNotificationAttributesKey];
+    [args setValue:[NSNumber numberWithBool:decision.variation.featureEnabled] forKey:OPTLYNotificationFeatureEnabled];
+    [args setValue:eventParams forKey:OPTLYNotificationLogEventParamsKey];
+    
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeIsFeatureEnabled args:args];
     return false;
 }
 
@@ -313,6 +325,16 @@ NSString *const OptimizelyNotificationsUserDictionaryExperimentVariationMappingK
         [self.logger logMessage:logMessage withLevel:OptimizelyLogLevelInfo];
     }
     
+    NSMutableDictionary *args = [[NSMutableDictionary alloc] init];
+    [args setValue:featureKey forKey:OPTLYNotificationFeatureKey];
+    [args setValue:variableKey forKey:OPTLYNotificationVariableKey];
+    [args setValue:userId forKey:OPTLYNotificationUserIdKey];
+    [args setValue:attributes forKey:OPTLYNotificationAttributesKey];
+    [args setValue:[NSNumber numberWithBool:decision.variation.featureEnabled] forKey:OPTLYNotificationFeatureEnabled];
+    [args setValue:variableValue forKey:OPTLYNotificationVariableValue];
+    [args setValue:variableType forKey:OPTLYNotificationVariableType];
+    
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeGetFeatureVariable args:args];
     return variableValue;
 }
 
@@ -505,20 +527,27 @@ NSString *const OptimizelyNotificationsUserDictionaryExperimentVariationMappingK
 - (NSString *)description {
     return [NSString stringWithFormat:@"config:%@\nlogger:%@\nerrorHandler:%@\neventDispatcher:%@\nuserProfile:%@", self.config, self.logger, self.errorHandler, self.eventDispatcher, self.userProfileService];
 }
+    
+- (NSDictionary *)createImpressionEventFor:(NSString *)userId
+                                experiment:(OPTLYExperiment *)experiment
+                                 variation:(OPTLYVariation *)variation
+                                attributes:(NSDictionary<NSString *, NSObject *> *)attributes {
+    return [self.eventBuilder buildImpressionEventForUser:userId
+                                               experiment:experiment
+                                                variation:variation
+                                               attributes:attributes];
+}
+    
 
-- (OPTLYVariation *)sendImpressionEventFor:(OPTLYExperiment *)experiment
+- (OPTLYVariation *)sendImpressionEventFor:(NSDictionary *)eventParams
+                                experiment:(OPTLYExperiment *)experiment
                                  variation:(OPTLYVariation *)variation
                                     userId:(NSString *)userId
                                 attributes:(NSDictionary<NSString *, NSObject *> *)attributes
                                   callback:(void (^)(NSError *))callback {
     
     // send impression event
-    NSDictionary *impressionEventParams = [self.eventBuilder buildImpressionEventForUser:userId
-                                                                              experiment:experiment
-                                                                               variation:variation
-                                                                              attributes:attributes];
-    
-    if ([impressionEventParams getValidDictionary] == nil) {
+    if ([eventParams getValidDictionary] == nil) {
         return nil;
     }
     
@@ -526,7 +555,7 @@ NSString *const OptimizelyNotificationsUserDictionaryExperimentVariationMappingK
     [self.logger logMessage:logMessage withLevel:OptimizelyLogLevelInfo];
     
     __weak typeof(self) weakSelf = self;
-    [self.eventDispatcher dispatchImpressionEvent:impressionEventParams
+    [self.eventDispatcher dispatchImpressionEvent:eventParams
                                          callback:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
                                              if (!error) {
                                                  NSString *logMessage = [NSString stringWithFormat:OPTLYLoggerMessagesEventDispatcherActivationSuccess, userId, experiment.experimentKey];
@@ -543,7 +572,7 @@ NSString *const OptimizelyNotificationsUserDictionaryExperimentVariationMappingK
     [args setValue:userId forKey:OPTLYNotificationUserIdKey];
     [args setValue:attributes forKey:OPTLYNotificationAttributesKey];
     [args setValue:variation forKey:OPTLYNotificationVariationKey];
-    [args setValue:impressionEventParams forKey:OPTLYNotificationLogEventParamsKey];
+    [args setValue:eventParams forKey:OPTLYNotificationLogEventParamsKey];
     
     [_notificationCenter sendNotifications:OPTLYNotificationTypeActivate args:args];
     return variation;
