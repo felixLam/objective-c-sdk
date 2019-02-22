@@ -23,6 +23,7 @@ typedef NS_ENUM(NSUInteger, OPTLYNotificationType) {
     OPTLYNotificationTypeActivate,
     OPTLYNotificationTypeTrack,
     OPTLYNotificationTypeIsFeatureEnabled,
+    OPTLYNotificationTypeGetEnabledFeatures,
     OPTLYNotificationTypeGetFeatureVariable
 };
 
@@ -41,16 +42,17 @@ typedef void (^TrackListener)(NSString * _Nonnull eventKey,
 typedef void (^FeatureEnabledListener)(NSString * _Nonnull featureKey,
                                        NSString * _Nonnull userId,
                                        NSDictionary<NSString *, NSObject *> * _Nullable attributes,
-                                       BOOL featureEnabled,
-                                       NSDictionary<NSString *,NSObject *> * _Nullable event);
+                                       NSDictionary<NSString *, NSObject *> * _Nullable featureInfo);
+
+typedef void (^GetEnabledFeaturesListener)(NSString * _Nonnull userId,
+                                          NSDictionary<NSString *, NSObject *> * _Nullable attributes,
+                                          NSArray<NSString *> * _Nullable enabledFeatures);
 
 typedef void (^GetFeatureVariableListener)(NSString * _Nonnull featureKey,
                                            NSString * _Nonnull variableKey,
                                            NSString * _Nonnull userId,
                                            NSDictionary<NSString *, NSObject *> * _Nullable attributes,
-                                           BOOL featureEnabled,
-                                           NSString * _Nullable variableValue,
-                                           NSString * _Nullable variableType);
+                                           NSDictionary<NSString *, NSObject *> * _Nullable featureVariableInfo);
 
 typedef void (^GenericListener)(NSDictionary * _Nonnull args);
 
@@ -61,13 +63,24 @@ extern NSString * _Nonnull const OPTLYNotificationVariationKey;
 extern NSString * _Nonnull const OPTLYNotificationUserIdKey;
 extern NSString * _Nonnull const OPTLYNotificationAttributesKey;
 extern NSString * _Nonnull const OPTLYNotificationEventKey;
-extern NSString * _Nonnull const OPTLYNotificationEventTagsKey;
 extern NSString * _Nonnull const OPTLYNotificationLogEventParamsKey;
+/// track Notification Keys
+extern NSString * _Nonnull const OPTLYNotificationEventTagsKey;
+/// isFeatureEnabled Notification Keys
+extern NSString * _Nonnull const OPTLYNotificationFeatureSource;
+extern NSString * _Nonnull const OPTLYNotificationIsEnabled;
+extern NSString * _Nonnull const OPTLYNotificationFeatureInfo;
+extern NSString * _Nonnull const OPTLYNotificationEvent;
+/// getEnabledFeatures Notification Keys
+extern NSString * _Nonnull const OPTLYNotificationEnabledFeatures;
+/// getFeatureVariable Notification Keys
 extern NSString * _Nonnull const OPTLYNotificationFeatureKey;
 extern NSString * _Nonnull const OPTLYNotificationVariableKey;
-extern NSString * _Nonnull const OPTLYNotificationFeatureEnabled;
 extern NSString * _Nonnull const OPTLYNotificationVariableValue;
 extern NSString * _Nonnull const OPTLYNotificationVariableType;
+extern NSString * _Nonnull const OPTLYNotificationFeatureEnabled;
+extern NSString * _Nonnull const OPTLYNotificationFeatureEnabledSource;
+extern NSString * _Nonnull const OPTLYNotificationFeatureVariableInfo;
 
 @interface OPTLYNotificationCenter : NSObject
 
@@ -105,6 +118,14 @@ extern NSString * _Nonnull const OPTLYNotificationVariableType;
  * @return the notification id used to remove the notification. It is greater than 0 on success.
  */
 - (NSInteger)addFeatureEnabledNotificationListener:(FeatureEnabledListener _Nonnull )featureEnabledListener;
+    
+/**
+ * Add a getEnabledFeature notification listener to the notification center.
+ *
+ * @param getEnabledFeatureListener - Notification to add.
+ * @return the notification id used to remove the notification. It is greater than 0 on success.
+ */
+- (NSInteger)addGetEnabledFeaturesNotificationListener:(GetEnabledFeaturesListener _Nonnull )getEnabledFeatureListener;
     
 /**
  * Add a getFeatureVariable notification listener to the notification center.
