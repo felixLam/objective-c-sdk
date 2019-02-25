@@ -24,6 +24,8 @@
 #import "OPTLYProjectConfig.h"
 #import "OPTLYExperiment.h"
 #import "OPTLYVariation.h"
+#import "Optimizely.h"
+#import "OPTLYFeatureDecision.h"
 
 static NSString *const kDataModelDatafileName = @"optimizely_6372300739_v4";
 static NSString *const kUserId = @"userId";
@@ -46,6 +48,9 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
 @property (nonatomic, copy) ActivateListener activateNotification;
 @property (nonatomic, copy) ActivateListener anotherActivateNotification;
 @property (nonatomic, copy) TrackListener trackNotification;
+@property (nonatomic, copy) IsFeatureEnabledListener isFeatureEnabledListener;
+@property (nonatomic, copy) GetEnabledFeaturesListener getEnabledFeaturesListener;
+@property (nonatomic, copy) GetFeatureVariableListener getFeatureVariableListener;
 @property (nonatomic, strong) OPTLYProjectConfig *projectConfig;
 @end
 
@@ -78,6 +83,22 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     weakSelf.trackNotification = ^(NSString *eventKey, NSString *userId, NSDictionary<NSString *, NSObject *> *attributes, NSDictionary *eventTags, NSDictionary<NSString *,NSString *> *event) {
         NSString *logMessage = @"track notification called with %@";
         [weakSelf.projectConfig.logger logMessage:[NSString stringWithFormat:logMessage, eventKey] withLevel:OptimizelyLogLevelInfo];
+        [weakSelf.projectConfig.logger logMessage:[NSString stringWithFormat:logMessage, userId] withLevel:OptimizelyLogLevelInfo];
+    };
+    weakSelf.isFeatureEnabledListener = ^(NSString * _Nonnull featureKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureInfo) {
+        NSString *logMessage = @"isFeatureEnabledListener notification called with %@";
+        [weakSelf.projectConfig.logger logMessage:[NSString stringWithFormat:logMessage, featureKey] withLevel:OptimizelyLogLevelInfo];
+        [weakSelf.projectConfig.logger logMessage:[NSString stringWithFormat:logMessage, userId] withLevel:OptimizelyLogLevelInfo];
+    };
+    weakSelf.getEnabledFeaturesListener = ^(NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSArray<NSString *> * _Nullable enabledFeatures) {
+        NSString *logMessage = @"getEnabledFeaturesListener notification called with %@";
+        [weakSelf.projectConfig.logger logMessage:[NSString stringWithFormat:logMessage, userId] withLevel:OptimizelyLogLevelInfo];
+        [weakSelf.projectConfig.logger logMessage:[NSString stringWithFormat:logMessage, enabledFeatures] withLevel:OptimizelyLogLevelInfo];
+    };
+    weakSelf.getFeatureVariableListener = ^(NSString * _Nonnull featureKey, NSString * _Nonnull variableKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureVariableInfo) {
+        NSString *logMessage = @"getFeatureVariableListener notification called with %@";
+        [weakSelf.projectConfig.logger logMessage:[NSString stringWithFormat:logMessage, featureKey] withLevel:OptimizelyLogLevelInfo];
+        [weakSelf.projectConfig.logger logMessage:[NSString stringWithFormat:logMessage, variableKey] withLevel:OptimizelyLogLevelInfo];
         [weakSelf.projectConfig.logger logMessage:[NSString stringWithFormat:logMessage, userId] withLevel:OptimizelyLogLevelInfo];
     };
 }
@@ -126,12 +147,21 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     // Add track notification.
     [_notificationCenter addTrackNotificationListener:_trackNotification];
     
+    // Add isFeatureEnabled notification.
+    [_notificationCenter addIsFeatureEnabledNotificationListener:_isFeatureEnabledListener];
+    
+    // Add getEnabledFeatures notification.
+    [_notificationCenter addGetEnabledFeaturesNotificationListener:_getEnabledFeaturesListener];
+    
+    // Add getFeatureVariable notification.
+    [_notificationCenter addGetFeatureVariableNotificationListener:_getFeatureVariableListener];
+    
     // Verify that callbacks added successfully.
-    XCTAssertEqual(3, _notificationCenter.notificationsCount);
+    XCTAssertEqual(6, _notificationCenter.notificationsCount);
     
     // Verify that only decision callbacks are removed.
     [_notificationCenter clearNotificationListeners:OPTLYNotificationTypeActivate];
-    XCTAssertEqual(1, _notificationCenter.notificationsCount);
+    XCTAssertEqual(4, _notificationCenter.notificationsCount);
     
     // Verify that ClearNotifications does not break on calling twice for same type.
     [_notificationCenter clearNotificationListeners:OPTLYNotificationTypeActivate];
@@ -140,6 +170,9 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     // Verify that ClearNotifications does not break after calling ClearAllNotifications.
     [_notificationCenter clearAllNotificationListeners];
     [_notificationCenter clearNotificationListeners:OPTLYNotificationTypeTrack];
+    [_notificationCenter clearNotificationListeners:OPTLYNotificationTypeIsFeatureEnabled];
+    [_notificationCenter clearNotificationListeners:OPTLYNotificationTypeGetEnabledFeatures];
+    [_notificationCenter clearNotificationListeners:OPTLYNotificationTypeGetFeatureVariable];
 }
 
 - (void)testClearAllNotifications {
@@ -151,8 +184,17 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     // Add track notification.
     [_notificationCenter addTrackNotificationListener:_trackNotification];
     
+    // Add isFeatureEnabled notification.
+    [_notificationCenter addIsFeatureEnabledNotificationListener:_isFeatureEnabledListener];
+    
+    // Add getEnabledFeatures notification.
+    [_notificationCenter addGetEnabledFeaturesNotificationListener:_getEnabledFeaturesListener];
+    
+    // Add getFeatureVariable notification.
+    [_notificationCenter addGetFeatureVariableNotificationListener:_getFeatureVariableListener];
+    
     // Verify that callbacks added successfully.
-    XCTAssertEqual(3, _notificationCenter.notificationsCount);
+    XCTAssertEqual(6, _notificationCenter.notificationsCount);
     
     // Verify that ClearAllNotifications remove all the callbacks.
     [_notificationCenter clearAllNotificationListeners];
@@ -164,7 +206,7 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     [_notificationCenter clearAllNotificationListeners];
 }
 
-- (void)testSendNotifications {
+- (void)testSendActivateNotification {
     
     // Add activate notifications.
     [_notificationCenter addActivateNotificationListener:_activateNotification];
@@ -172,6 +214,15 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     
     // Add track notification.
     [_notificationCenter addTrackNotificationListener:_trackNotification];
+    
+    // Add isFeatureEnabled notification.
+    [_notificationCenter addIsFeatureEnabledNotificationListener:_isFeatureEnabledListener];
+    
+    // Add getEnabledFeatures notification.
+    [_notificationCenter addGetEnabledFeaturesNotificationListener:_getEnabledFeaturesListener];
+    
+    // Add getFeatureVariable notification.
+    [_notificationCenter addGetFeatureVariableNotificationListener:_getFeatureVariableListener];
     
     // Fire decision type notifications.
     
@@ -192,20 +243,63 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     [_notificationCenter sendNotifications:OPTLYNotificationTypeActivate args:activateArgs];
     
     OCMReject(_trackNotification);
+    OCMReject(_isFeatureEnabledListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
     OCMVerify(_activateNotification);
     OCMVerify(_anotherActivateNotification);
+    
+    // Verify that after clearing notifications, SendNotification should not call any notification
+    // which were previously registered.
+    [_notificationCenter clearAllNotificationListeners];
+    
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeActivate args:activateArgs];
+    // Again verify notifications which were registered are not called.
+    OCMReject(_trackNotification);
+    OCMReject(_activateNotification);
+    OCMReject(_anotherActivateNotification);
+    OCMReject(_isFeatureEnabledListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
+}
+
+- (void)testSendTrackNotification {
+    
+    // Add activate notifications.
+    [_notificationCenter addActivateNotificationListener:_activateNotification];
+    [_notificationCenter addActivateNotificationListener:_anotherActivateNotification];
+    
+    // Add track notification.
+    [_notificationCenter addTrackNotificationListener:_trackNotification];
+    
+    // Add isFeatureEnabled notification.
+    [_notificationCenter addIsFeatureEnabledNotificationListener:_isFeatureEnabledListener];
+    
+    // Add getEnabledFeatures notification.
+    [_notificationCenter addGetEnabledFeaturesNotificationListener:_getEnabledFeaturesListener];
+    
+    // Add getFeatureVariable notification.
+    [_notificationCenter addGetFeatureVariableNotificationListener:_getFeatureVariableListener];
+    
+    // Fire decision type notifications.
+    
+    OPTLYExperiment *experiment = [_projectConfig getExperimentForKey:kExperimentKey];
+    OPTLYVariation *variation = [experiment getVariationForVariationId:kVariationId];
+    NSDictionary *attributes = [NSDictionary new];
+    NSDictionary *event = [NSDictionary new];
+    NSString *userId = [NSString stringWithFormat:@"%@", kUserId];
     
     NSString *eventKey = [NSString stringWithFormat:@"%@", kUserId];
     NSDictionary *eventTags = [NSDictionary new];
     
     NSDictionary *trackArgs = @{
-                           OPTLYNotificationEventKey: eventKey,
-                           OPTLYNotificationUserIdKey: userId,
-                           OPTLYNotificationAttributesKey: attributes,
-                           OPTLYNotificationVariationKey: variation,
-                           OPTLYNotificationEventTagsKey: eventTags,
-                           OPTLYNotificationLogEventParamsKey: event
-                           };
+                                OPTLYNotificationEventKey: eventKey,
+                                OPTLYNotificationUserIdKey: userId,
+                                OPTLYNotificationAttributesKey: attributes,
+                                OPTLYNotificationVariationKey: variation,
+                                OPTLYNotificationEventTagsKey: eventTags,
+                                OPTLYNotificationLogEventParamsKey: event
+                                };
     
     
     // Verify that only the registered notifications of track type are called.
@@ -214,17 +308,180 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     OCMVerify(_trackNotification);
     OCMReject(_activateNotification);
     OCMReject(_anotherActivateNotification);
+    OCMReject(_isFeatureEnabledListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
     
     // Verify that after clearing notifications, SendNotification should not call any notification
     // which were previously registered.
     [_notificationCenter clearAllNotificationListeners];
     
-    [_notificationCenter sendNotifications:OPTLYNotificationTypeActivate args:activateArgs];
-    
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeTrack args:trackArgs];
     // Again verify notifications which were registered are not called.
     OCMReject(_trackNotification);
     OCMReject(_activateNotification);
     OCMReject(_anotherActivateNotification);
+    OCMReject(_isFeatureEnabledListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
+}
+
+- (void)testSendIsFeatureEnabledNotification {
+    
+    // Add activate notifications.
+    [_notificationCenter addActivateNotificationListener:_activateNotification];
+    [_notificationCenter addActivateNotificationListener:_anotherActivateNotification];
+    
+    // Add track notification.
+    [_notificationCenter addTrackNotificationListener:_trackNotification];
+    
+    // Add isFeatureEnabled notification.
+    [_notificationCenter addIsFeatureEnabledNotificationListener:_isFeatureEnabledListener];
+    
+    // Add getEnabledFeatures notification.
+    [_notificationCenter addGetEnabledFeaturesNotificationListener:_getEnabledFeaturesListener];
+    
+    // Add getFeatureVariable notification.
+    [_notificationCenter addGetFeatureVariableNotificationListener:_getFeatureVariableListener];
+    
+    // Fire decision type notifications.
+    NSString *featureFlagKey = @"booleanFeature";
+    NSMutableDictionary *featureInfo = [[NSMutableDictionary alloc] init];
+    [featureInfo setValue:DecisionSourceExperiment forKey:OPTLYNotificationFeatureSource];
+    
+    [featureInfo setValue:[NSNumber numberWithBool:1] forKey:OPTLYNotificationIsEnabled];
+    [featureInfo setValue:[NSNull null] forKey:OPTLYNotificationEvent];
+    
+    NSMutableDictionary *args = [[NSMutableDictionary alloc] init];
+    [args setValue:featureFlagKey forKey:OPTLYNotificationFeatureKey];
+    [args setValue:kUserId forKey:OPTLYNotificationUserIdKey];
+    [args setValue:[NSNull null] forKey:OPTLYNotificationAttributesKey];
+    [args setValue:featureInfo forKey:OPTLYNotificationFeatureInfo];
+    
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeIsFeatureEnabled args:args];
+    
+    OCMVerify(_isFeatureEnabledListener);
+    OCMReject(_trackNotification);
+    OCMReject(_activateNotification);
+    OCMReject(_anotherActivateNotification);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
+    
+    // Verify that after clearing notifications, SendNotification should not call any notification
+    // which were previously registered.
+    [_notificationCenter clearAllNotificationListeners];
+    
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeIsFeatureEnabled args:args];
+    // Again verify notifications which were registered are not called.
+    OCMReject(_trackNotification);
+    OCMReject(_activateNotification);
+    OCMReject(_anotherActivateNotification);
+    OCMReject(_isFeatureEnabledListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
+}
+
+- (void)testSendGetEnabledFeaturesNotification {
+    
+    // Add activate notifications.
+    [_notificationCenter addActivateNotificationListener:_activateNotification];
+    [_notificationCenter addActivateNotificationListener:_anotherActivateNotification];
+    
+    // Add track notification.
+    [_notificationCenter addTrackNotificationListener:_trackNotification];
+    
+    // Add isFeatureEnabled notification.
+    [_notificationCenter addIsFeatureEnabledNotificationListener:_isFeatureEnabledListener];
+    
+    // Add getEnabledFeatures notification.
+    [_notificationCenter addGetEnabledFeaturesNotificationListener:_getEnabledFeaturesListener];
+    
+    // Add getFeatureVariable notification.
+    [_notificationCenter addGetFeatureVariableNotificationListener:_getFeatureVariableListener];
+    
+    // Fire decision type notifications.
+    NSMutableDictionary *args = [[NSMutableDictionary alloc] init];
+    [args setValue:kUserId forKey:OPTLYNotificationUserIdKey];
+    [args setValue:[NSNull null] forKey:OPTLYNotificationAttributesKey];
+    [args setValue:@[] forKey:OPTLYNotificationEnabledFeatures];
+    
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeGetEnabledFeatures args:args];
+    
+    OCMVerify(_getEnabledFeaturesListener);
+    OCMReject(_trackNotification);
+    OCMReject(_activateNotification);
+    OCMReject(_anotherActivateNotification);
+    OCMReject(_getFeatureVariableListener);
+    OCMReject(_isFeatureEnabledListener);
+    
+    // Verify that after clearing notifications, SendNotification should not call any notification
+    // which were previously registered.
+    [_notificationCenter clearAllNotificationListeners];
+    
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeIsFeatureEnabled args:args];
+    // Again verify notifications which were registered are not called.
+    OCMReject(_trackNotification);
+    OCMReject(_activateNotification);
+    OCMReject(_anotherActivateNotification);
+    OCMReject(_isFeatureEnabledListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
+}
+
+- (void) testSendGetFeatureVariableNotification {
+    
+    // Add activate notifications.
+    [_notificationCenter addActivateNotificationListener:_activateNotification];
+    [_notificationCenter addActivateNotificationListener:_anotherActivateNotification];
+    
+    // Add track notification.
+    [_notificationCenter addTrackNotificationListener:_trackNotification];
+    
+    // Add isFeatureEnabled notification.
+    [_notificationCenter addIsFeatureEnabledNotificationListener:_isFeatureEnabledListener];
+    
+    // Add getEnabledFeatures notification.
+    [_notificationCenter addGetEnabledFeaturesNotificationListener:_getEnabledFeaturesListener];
+    
+    // Add getFeatureVariable notification.
+    [_notificationCenter addGetFeatureVariableNotificationListener:_getFeatureVariableListener];
+
+    // Fire decision type notifications.
+    NSString *featureFlagKey = @"booleanFeature";
+    NSMutableDictionary *featureInfo = [[NSMutableDictionary alloc] init];
+    [featureInfo setValue:[NSNumber numberWithBool:1] forKey:OPTLYNotificationFeatureEnabled];
+    [featureInfo setValue:@YES forKey:OPTLYNotificationVariableValue];
+    [featureInfo setValue:@"boolean" forKey:OPTLYNotificationVariableType];
+    [featureInfo setValue:DecisionSourceExperiment forKey:OPTLYNotificationFeatureEnabledSource];
+    
+    NSMutableDictionary *args = [[NSMutableDictionary alloc] init];
+    [args setValue:featureFlagKey forKey:OPTLYNotificationFeatureKey];
+    [args setValue:@"tempKey" forKey:OPTLYNotificationVariableKey];
+    [args setValue:kUserId forKey:OPTLYNotificationUserIdKey];
+    [args setValue:[NSNull null] forKey:OPTLYNotificationAttributesKey];
+    [args setValue:featureInfo forKey:OPTLYNotificationFeatureVariableInfo];
+    
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeGetFeatureVariable args:args];
+    
+    OCMVerify(_getFeatureVariableListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_trackNotification);
+    OCMReject(_activateNotification);
+    OCMReject(_anotherActivateNotification);
+    OCMReject(_isFeatureEnabledListener);
+    
+    // Verify that after clearing notifications, SendNotification should not call any notification
+    // which were previously registered.
+    [_notificationCenter clearAllNotificationListeners];
+    
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeIsFeatureEnabled args:args];
+    // Again verify notifications which were registered are not called.
+    OCMReject(_trackNotification);
+    OCMReject(_activateNotification);
+    OCMReject(_anotherActivateNotification);
+    OCMReject(_isFeatureEnabledListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
 }
 
 - (void) testSendNotificationWithAnyAttributes {
@@ -233,6 +490,15 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     
     // Add track notification.
     [_notificationCenter addTrackNotificationListener:_trackNotification];
+    
+    // Add isFeatureEnabled notification.
+    [_notificationCenter addIsFeatureEnabledNotificationListener:_isFeatureEnabledListener];
+    
+    // Add getEnabledFeatures notification.
+    [_notificationCenter addGetEnabledFeaturesNotificationListener:_getEnabledFeaturesListener];
+    
+    // Add getFeatureVariable notification.
+    [_notificationCenter addGetFeatureVariableNotificationListener:_getFeatureVariableListener];
     
     // Fire decision type notifications.
     OPTLYExperiment *experiment = [_projectConfig getExperimentForKey:kExperimentKey];
@@ -258,6 +524,7 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     
     // Verify that only the registered notifications of decision type are called.
     [_notificationCenter sendNotifications:OPTLYNotificationTypeActivate args:activateArgs];
+    OCMVerify(_activateNotification);
     
     NSString *eventKey = [NSString stringWithFormat:@"%@", kUserId];
     NSDictionary *eventTags = [NSDictionary new];
@@ -273,6 +540,50 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     
     // Verify that only the registered notifications of track type are called.
     [_notificationCenter sendNotifications:OPTLYNotificationTypeTrack args:trackArgs];
+    OCMVerify(_trackNotification);
+    
+    NSString *featureFlagKey = @"booleanFeature";
+    NSMutableDictionary *featureInfo = [[NSMutableDictionary alloc] init];
+    [featureInfo setValue:DecisionSourceExperiment forKey:OPTLYNotificationFeatureSource];
+    
+    [featureInfo setValue:[NSNumber numberWithBool:1] forKey:OPTLYNotificationIsEnabled];
+    [featureInfo setValue:[NSNull null] forKey:OPTLYNotificationEvent];
+    
+    NSMutableDictionary *isFeatureEnabledArgs = [[NSMutableDictionary alloc] init];
+    [isFeatureEnabledArgs setValue:featureFlagKey forKey:OPTLYNotificationFeatureKey];
+    [isFeatureEnabledArgs setValue:kUserId forKey:OPTLYNotificationUserIdKey];
+    [isFeatureEnabledArgs setValue:attributes forKey:OPTLYNotificationAttributesKey];
+    [isFeatureEnabledArgs setValue:featureInfo forKey:OPTLYNotificationFeatureInfo];
+    
+    // Verify that only the registered notifications of isFeatureEnabled type are called.
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeIsFeatureEnabled args:isFeatureEnabledArgs];
+    OCMVerify(_isFeatureEnabledListener);
+    
+    NSMutableDictionary *getEnabledFeaturesArgs = [[NSMutableDictionary alloc] init];
+    [getEnabledFeaturesArgs setValue:kUserId forKey:OPTLYNotificationUserIdKey];
+    [getEnabledFeaturesArgs setValue:attributes forKey:OPTLYNotificationAttributesKey];
+    [getEnabledFeaturesArgs setValue:@[] forKey:OPTLYNotificationEnabledFeatures];
+    
+    // Verify that only the registered notifications of getEnabledFeatures type are called.
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeGetEnabledFeatures args:getEnabledFeaturesArgs];
+    OCMVerify(_getEnabledFeaturesListener);
+    
+    featureInfo = [[NSMutableDictionary alloc] init];
+    [featureInfo setValue:[NSNumber numberWithBool:1] forKey:OPTLYNotificationFeatureEnabled];
+    [featureInfo setValue:@YES forKey:OPTLYNotificationVariableValue];
+    [featureInfo setValue:@"boolean" forKey:OPTLYNotificationVariableType];
+    [featureInfo setValue:DecisionSourceExperiment forKey:OPTLYNotificationFeatureEnabledSource];
+    
+    NSMutableDictionary *args = [[NSMutableDictionary alloc] init];
+    [args setValue:featureFlagKey forKey:OPTLYNotificationFeatureKey];
+    [args setValue:@"tempKey" forKey:OPTLYNotificationVariableKey];
+    [args setValue:kUserId forKey:OPTLYNotificationUserIdKey];
+    [args setValue:[NSNull null] forKey:OPTLYNotificationAttributesKey];
+    [args setValue:featureInfo forKey:OPTLYNotificationFeatureVariableInfo];
+    
+    // Verify that only the registered notifications of getFeatureVariable type are called.
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeGetFeatureVariable args:args];
+    OCMVerify(_getFeatureVariableListener);
 }
 
 - (void)testSendNotificationsWithInvalidArgs {
@@ -282,6 +593,15 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     
     // Add track notification.
     [_notificationCenter addTrackNotificationListener:_trackNotification];
+    
+    // Add isFeatureEnabled notification.
+    [_notificationCenter addIsFeatureEnabledNotificationListener:_isFeatureEnabledListener];
+    
+    // Add getEnabledFeatures notification.
+    [_notificationCenter addGetEnabledFeaturesNotificationListener:_getEnabledFeaturesListener];
+    
+    // Add getFeatureVariable notification.
+    [_notificationCenter addGetFeatureVariableNotificationListener:_getFeatureVariableListener];
     
     // Fire decision type notifications.
     OPTLYExperiment *experiment = [_projectConfig getExperimentForKey:kExperimentKey];
@@ -295,6 +615,9 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     
     OCMReject(_trackNotification);
     OCMReject(_activateNotification);
+    OCMReject(_isFeatureEnabledListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
     
     NSString *eventKey = [NSString stringWithFormat:@"%@", kUserId];
     NSDictionary *eventTags = [NSDictionary new];
@@ -304,6 +627,48 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     
     OCMReject(_trackNotification);
     OCMReject(_activateNotification);
+    OCMReject(_isFeatureEnabledListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
+    
+    NSString *featureFlagKey = @"booleanFeature";
+    NSMutableDictionary *featureInfo = [[NSMutableDictionary alloc] init];
+    [featureInfo setValue:DecisionSourceExperiment forKey:OPTLYNotificationFeatureSource];
+    
+    [featureInfo setValue:[NSNumber numberWithBool:1] forKey:OPTLYNotificationIsEnabled];
+    [featureInfo setValue:[NSNull null] forKey:OPTLYNotificationEvent];
+    
+    // Verify that only the registered notifications of isFeatureEnabled type are called.
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeIsFeatureEnabled args:@[featureFlagKey, kUserId, attributes, featureInfo]];
+    
+    OCMReject(_trackNotification);
+    OCMReject(_activateNotification);
+    OCMReject(_isFeatureEnabledListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
+    
+    // Verify that only the registered notifications of getEnabledFeatures type are called.
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeGetEnabledFeatures args:@[kUserId, ]];
+    OCMReject(_trackNotification);
+    OCMReject(_activateNotification);
+    OCMReject(_isFeatureEnabledListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
+    
+    featureInfo = [[NSMutableDictionary alloc] init];
+    [featureInfo setValue:[NSNumber numberWithBool:1] forKey:OPTLYNotificationFeatureEnabled];
+    [featureInfo setValue:@YES forKey:OPTLYNotificationVariableValue];
+    [featureInfo setValue:@"boolean" forKey:OPTLYNotificationVariableType];
+    [featureInfo setValue:DecisionSourceExperiment forKey:OPTLYNotificationFeatureEnabledSource];
+    
+    // Verify that only the registered notifications of getFeatureVariable type are called.
+    [_notificationCenter sendNotifications:OPTLYNotificationTypeGetFeatureVariable args:@[featureFlagKey, kUserId, featureInfo]];
+    OCMReject(_trackNotification);
+    OCMReject(_activateNotification);
+    OCMReject(_isFeatureEnabledListener);
+    OCMReject(_getEnabledFeaturesListener);
+    OCMReject(_getFeatureVariableListener);
+    
 }
 
 @end

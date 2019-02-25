@@ -218,7 +218,7 @@
 #pragma mark - Feature Flag Methods
 
 - (BOOL)isFeatureEnabled:(NSString *)featureKey userId:(NSString *)userId attributes:(nullable NSDictionary<NSString *, NSObject *> *)attributes {
-    
+    BOOL result = false;
     NSMutableDictionary<NSString *, NSString *> *inputValues = [[NSMutableDictionary alloc] initWithDictionary:@{
                                                                                                                  OPTLYNotificationUserIdKey:[self ObjectOrNull:userId],
                                                                                                                  OPTLYNotificationExperimentKey:[self ObjectOrNull:featureKey]}];
@@ -227,16 +227,16 @@
                                                     OPTLYNotificationExperimentKey:OPTLYLoggerMessagesFeatureDisabledFlagKeyInvalid};
     
     if (![self validateStringInputs:inputValues logs:logs]) {
-        return false;
+        return result;
     }
     
     OPTLYFeatureFlag *featureFlag = [self.config getFeatureFlagForKey:featureKey];
     if ([featureFlag.key getValidString] == nil) {
         [self.logger logMessage:OPTLYLoggerMessagesFeatureDisabledFlagKeyInvalid withLevel:OptimizelyLogLevelError];
-        return false;
+        return result;
     }
     if (![featureFlag isValid:self.config]) {
-        return false;
+        return result;
     }
     
     OPTLYFeatureDecision *decision = [self.decisionService getVariationForFeature:featureFlag userId:userId attributes:attributes];
@@ -254,7 +254,7 @@
         if (decision.variation.featureEnabled) {
             NSString *logMessage = [NSString stringWithFormat:OPTLYLoggerMessagesFeatureEnabled, featureKey, userId];
             [self.logger logMessage:logMessage withLevel:OptimizelyLogLevelInfo];
-            return true;
+            result = true;
         }
         [featureInfo setValue:decision.source forKey:OPTLYNotificationFeatureSource];
     }
@@ -272,7 +272,7 @@
     [args setValue:featureInfo forKey:OPTLYNotificationFeatureInfo];
     
     [_notificationCenter sendNotifications:OPTLYNotificationTypeIsFeatureEnabled args:args];
-    return false;
+    return result;
 }
 
 - (NSString *)getFeatureVariableValueForType:(NSString *)variableType

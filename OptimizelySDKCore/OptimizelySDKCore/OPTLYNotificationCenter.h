@@ -39,10 +39,10 @@ typedef void (^TrackListener)(NSString * _Nonnull eventKey,
                               NSDictionary * _Nullable eventTags,
                               NSDictionary<NSString *,NSObject *> * _Nonnull event);
 
-typedef void (^FeatureEnabledListener)(NSString * _Nonnull featureKey,
-                                       NSString * _Nonnull userId,
-                                       NSDictionary<NSString *, NSObject *> * _Nullable attributes,
-                                       NSDictionary<NSString *, NSObject *> * _Nullable featureInfo);
+typedef void (^IsFeatureEnabledListener)(NSString * _Nonnull featureKey,
+                                         NSString * _Nonnull userId,
+                                         NSDictionary<NSString *, NSObject *> * _Nullable attributes,
+                                         NSDictionary<NSString *, NSObject *> * _Nullable featureInfo);
 
 typedef void (^GetEnabledFeaturesListener)(NSString * _Nonnull userId,
                                           NSDictionary<NSString *, NSObject *> * _Nullable attributes,
@@ -112,12 +112,12 @@ extern NSString * _Nonnull const OPTLYNotificationFeatureVariableInfo;
 - (NSInteger)addTrackNotificationListener:(TrackListener _Nonnull )trackListener;
     
 /**
- * Add a featureEnabled notification listener to the notification center.
+ * Add a isFeatureEnabled notification listener to the notification center.
  *
- * @param featureEnabledListener - Notification to add.
+ * @param isFeatureEnabledListener - Notification to add.
  * @return the notification id used to remove the notification. It is greater than 0 on success.
  */
-- (NSInteger)addFeatureEnabledNotificationListener:(FeatureEnabledListener _Nonnull )featureEnabledListener;
+- (NSInteger)addIsFeatureEnabledNotificationListener:(IsFeatureEnabledListener _Nonnull )isFeatureEnabledListener;
     
 /**
  * Add a getEnabledFeature notification listener to the notification center.

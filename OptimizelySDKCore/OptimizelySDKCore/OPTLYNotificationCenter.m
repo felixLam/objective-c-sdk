@@ -88,8 +88,8 @@ NSString * _Nonnull const OPTLYNotificationFeatureVariableInfo = @"featureVariab
     return [self addNotification:OPTLYNotificationTypeTrack listener:(GenericListener)trackListener];
 }
     
-- (NSInteger)addFeatureEnabledNotificationListener:(FeatureEnabledListener)featureEnabledListener {
-    return [self addNotification:OPTLYNotificationTypeIsFeatureEnabled listener:(GenericListener)featureEnabledListener];
+- (NSInteger)addIsFeatureEnabledNotificationListener:(IsFeatureEnabledListener)isFeatureEnabledListener {
+    return [self addNotification:OPTLYNotificationTypeIsFeatureEnabled listener:(GenericListener)isFeatureEnabledListener];
 }
     
 - (NSInteger)addGetEnabledFeaturesNotificationListener:(GetEnabledFeaturesListener _Nonnull )getEnabledFeatureListener {
@@ -133,7 +133,7 @@ NSString * _Nonnull const OPTLYNotificationFeatureVariableInfo = @"featureVariab
                     [self notifyTrackListener:((TrackListener) listener) args:args];
                     break;
                 case OPTLYNotificationTypeIsFeatureEnabled:
-                    [self notifyFeatureEnabledListener:((FeatureEnabledListener) listener) args:args];
+                    [self notifyFeatureEnabledListener:((IsFeatureEnabledListener) listener) args:args];
                     break;
                 case OPTLYNotificationTypeGetEnabledFeatures:
                     [self notifyGetEnabledFeaturesListener:((GetEnabledFeaturesListener) listener) args:args];
@@ -239,7 +239,7 @@ NSString * _Nonnull const OPTLYNotificationFeatureVariableInfo = @"featureVariab
     listener(eventKey, userId, attributes, eventTags, logEvent);
 }
     
-- (void)notifyFeatureEnabledListener:(FeatureEnabledListener)listener args:(NSDictionary *)args {
+- (void)notifyFeatureEnabledListener:(IsFeatureEnabledListener)listener args:(NSDictionary *)args {
     
     if(args.allKeys.count < 3) {
         NSString *logMessage = [NSString stringWithFormat:@"Not enough arguments to call %@ for notification callback.", listener];
@@ -262,10 +262,7 @@ NSString * _Nonnull const OPTLYNotificationFeatureVariableInfo = @"featureVariab
     }
     
     NSDictionary *featureInfo = (NSDictionary *)[args objectForKey:OPTLYNotificationFeatureInfo];
-
-    if (featureInfo != nil && ![featureInfo isEqual:[NSNull null]]) {
-        assert([featureInfo isKindOfClass:[NSDictionary class]]);
-    }
+    assert([featureInfo isKindOfClass:[NSDictionary class]]);
     
     NSNumber *featureEnabled = (NSNumber *)[featureInfo objectForKey:OPTLYNotificationIsEnabled];
     assert(featureEnabled);
@@ -333,10 +330,7 @@ NSString * _Nonnull const OPTLYNotificationFeatureVariableInfo = @"featureVariab
     }
     
     NSDictionary *featureInfo = (NSDictionary *)[args objectForKey:OPTLYNotificationFeatureVariableInfo];
-    
-    if (featureInfo != nil && ![featureInfo isEqual:[NSNull null]]) {
-        assert([featureInfo isKindOfClass:[NSDictionary class]]);
-    }
+    assert([featureInfo isKindOfClass:[NSDictionary class]]);
     
     NSNumber *featureEnabled = (NSNumber *)[featureInfo objectForKey:OPTLYNotificationFeatureEnabled];
     assert(featureEnabled);
@@ -347,7 +341,6 @@ NSString * _Nonnull const OPTLYNotificationFeatureVariableInfo = @"featureVariab
     
     NSString *variableValue = (NSString *)[featureInfo objectForKey:OPTLYNotificationVariableValue];
     assert(variableValue);
-    assert([variableValue isValidStringType]);
     
     NSString *variableType = (NSString *)[featureInfo objectForKey:OPTLYNotificationVariableType];
     assert(variableType);
