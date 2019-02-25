@@ -68,6 +68,10 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
 - (id)ObjectOrNull:(id)object;
 @end
 
+@interface OPTLYNotificationCenter(Testing)
+- (void)sendNotifications:(OPTLYNotificationType)type args:(NSDictionary *)args;
+@end
+
 @interface OPTLYNotificationTest : NSObject
 @end
 
@@ -603,7 +607,26 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
 - (void)testIsFeatureEnabledWithFeatureFlagContainsMutexGroupExperiments {
     NSString *featureFlagKey = @"booleanFeature";
     // Should return true when experiments in feature flag does belongs to same group.
-    XCTAssertTrue([self.optimizely isFeatureEnabled:featureFlagKey userId:kUserId attributes:nil], @"should return true when experiments in feature flag does belongs to same group");
+    __block NSString *expectedFeatureKey = nil;
+    __block NSString *expectedUserId = nil;
+    
+    Optimizely *_optimizely = OCMPartialMock(self.optimizely);
+    [_optimizely.notificationCenter addActivateNotificationListener:^(OPTLYExperiment * _Nonnull experiment, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, OPTLYVariation * _Nonnull variation, NSDictionary<NSString *,NSObject *> * _Nonnull event) {
+        
+    }];
+    [_optimizely.notificationCenter addIsFeatureEnabledNotificationListener:^(NSString * _Nonnull featureKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureInfo) {
+        expectedFeatureKey = featureKey;
+        expectedUserId = userId;
+        XCTAssertNotNil(featureInfo[OPTLYNotificationEvent]);
+        XCTAssertEqual(featureInfo[OPTLYNotificationFeatureSource], DecisionSourceExperiment);
+        XCTAssertTrue([(NSNumber *)featureInfo[OPTLYNotificationIsEnabled] boolValue]);
+    }];
+    
+    XCTAssertTrue([_optimizely isFeatureEnabled:featureFlagKey userId:kUserId attributes:nil], @"should return true when experiments in feature flag does belongs to same group");
+    XCTAssertEqual(featureFlagKey, expectedFeatureKey);
+    XCTAssertEqual(kUserId, expectedUserId);
+    OCMReject([_optimizely.notificationCenter sendNotifications:OPTLYNotificationTypeActivate args:[OCMArg any]]);
+    [(id)_optimizely stopMocking];
 }
 
 // Should return false when feature is not enabled for the user.
@@ -618,7 +641,6 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     
     OCMVerify([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]);
     [decisionServiceMock stopMocking];
-    
 }
 
 // Should return true but does not send an impression event when feature is enabled for the user
@@ -632,17 +654,33 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     OPTLYFeatureDecision *decision = [[OPTLYFeatureDecision alloc] initWithExperiment:experiment variation:variation source:DecisionSourceRollout];
     
     id decisionServiceMock = OCMPartialMock(self.optimizely.decisionService);
-    id optimizelyMock = OCMPartialMock(self.optimizely);
+    Optimizely *optimizelyMock = OCMPartialMock(self.optimizely);
     
     OCMStub([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]).andReturn(decision);
     // SendImpressionEvent() does not get called.
     NSDictionary *impressionEvent = [optimizelyMock createImpressionEventFor:kUserId experiment:decision.experiment variation:decision.variation attributes:nil];
     OCMReject([optimizelyMock sendImpressionEventFor:impressionEvent experiment:decision.experiment variation:decision.variation userId:kUserId attributes:nil callback:nil]);
     
-    XCTAssertTrue([self.optimizely isFeatureEnabled:featureFlagKey userId:kUserId attributes:nil], @"should return true for enabled featureFlag");
+    __block NSString *expectedFeatureKey = nil;
+    __block NSString *expectedUserId = nil;
     
+    [optimizelyMock.notificationCenter addActivateNotificationListener:^(OPTLYExperiment * _Nonnull experiment, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, OPTLYVariation * _Nonnull variation, NSDictionary<NSString *,NSObject *> * _Nonnull event) {
+    }];
+    
+    [optimizelyMock.notificationCenter addIsFeatureEnabledNotificationListener:^(NSString * _Nonnull featureKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureInfo) {
+        expectedFeatureKey = featureKey;
+        expectedUserId = userId;
+        XCTAssertNil(featureInfo[OPTLYNotificationEvent]);
+        XCTAssertEqual(featureInfo[OPTLYNotificationFeatureSource], DecisionSourceRollout);
+        XCTAssertTrue([(NSNumber *)featureInfo[OPTLYNotificationIsEnabled] boolValue]);
+    }];
+    XCTAssertTrue([self.optimizely isFeatureEnabled:featureFlagKey userId:kUserId attributes:nil], @"should return true for enabled featureFlag");
+    XCTAssertEqual(featureFlagKey, expectedFeatureKey);
+    XCTAssertEqual(kUserId, expectedUserId);
+    OCMReject([optimizelyMock.notificationCenter sendNotifications:OPTLYNotificationTypeActivate args:[OCMArg any]]);
     OCMVerify([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]);
     [decisionServiceMock stopMocking];
+    [(id)optimizelyMock stopMocking];
 }
 
 // Should return true and send an impression event when feature is enabled for the user
@@ -655,17 +693,34 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     OPTLYFeatureDecision *decision = [[OPTLYFeatureDecision alloc] initWithExperiment:experiment variation:variation source:DecisionSourceExperiment];
     
     id decisionServiceMock = OCMPartialMock(self.optimizely.decisionService);
-    id optimizelyMock = OCMPartialMock(self.optimizely);
+    Optimizely *optimizelyMock = OCMPartialMock(self.optimizely);
     
     OCMStub([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]).andReturn(decision);
     
+    __block NSString *expectedFeatureKey = nil;
+    __block NSString *expectedUserId = nil;
+    
+    [optimizelyMock.notificationCenter addActivateNotificationListener:^(OPTLYExperiment * _Nonnull experiment, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, OPTLYVariation * _Nonnull variation, NSDictionary<NSString *,NSObject *> * _Nonnull event) {
+    }];
+    
+    [optimizelyMock.notificationCenter addIsFeatureEnabledNotificationListener:^(NSString * _Nonnull featureKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureInfo) {
+        expectedFeatureKey = featureKey;
+        expectedUserId = userId;
+        XCTAssertNotNil(featureInfo[OPTLYNotificationEvent]);
+        XCTAssertEqual(featureInfo[OPTLYNotificationFeatureSource], DecisionSourceExperiment);
+        XCTAssertTrue([(NSNumber *)featureInfo[OPTLYNotificationIsEnabled] boolValue]);
+    }];
     XCTAssertTrue([self.optimizely isFeatureEnabled:featureFlagKey userId:kUserId attributes:nil], @"should return true for enabled featureFlag");
+    XCTAssertEqual(featureFlagKey, expectedFeatureKey);
+    XCTAssertEqual(kUserId, expectedUserId);
+    OCMReject([optimizelyMock.notificationCenter sendNotifications:OPTLYNotificationTypeActivate args:[OCMArg any]]);
     
     // SendImpressionEvent() does get called.
     OCMVerify([optimizelyMock sendImpressionEventFor:[OCMArg any] experiment:decision.experiment variation:decision.variation userId:kUserId attributes:nil callback:nil]);
     
     OCMVerify([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]);
     [decisionServiceMock stopMocking];
+    [(id)optimizelyMock stopMocking];
 }
 
 // Should return false if the feature experiment variation’s `featureEnabled` property is false
@@ -677,17 +732,34 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     OPTLYFeatureDecision *decision = [[OPTLYFeatureDecision alloc] initWithExperiment:experiment variation:variation source:DecisionSourceExperiment];
     
     id decisionServiceMock = OCMPartialMock(self.optimizely.decisionService);
-    id optimizelyMock = OCMPartialMock(self.optimizely);
+    Optimizely *optimizelyMock = OCMPartialMock(self.optimizely);
     
     OCMStub([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]).andReturn(decision);
     
+    __block NSString *expectedFeatureKey = nil;
+    __block NSString *expectedUserId = nil;
+    
+    [optimizelyMock.notificationCenter addActivateNotificationListener:^(OPTLYExperiment * _Nonnull experiment, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, OPTLYVariation * _Nonnull variation, NSDictionary<NSString *,NSObject *> * _Nonnull event) {
+    }];
+    
+    [optimizelyMock.notificationCenter addIsFeatureEnabledNotificationListener:^(NSString * _Nonnull featureKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureInfo) {
+        expectedFeatureKey = featureKey;
+        expectedUserId = userId;
+        XCTAssertNotNil(featureInfo[OPTLYNotificationEvent]);
+        XCTAssertEqual(featureInfo[OPTLYNotificationFeatureSource], DecisionSourceExperiment);
+        XCTAssertFalse([(NSNumber *)featureInfo[OPTLYNotificationIsEnabled] boolValue]);
+    }];
     XCTAssertFalse([self.optimizely isFeatureEnabled:featureFlagKey userId:kUserId attributes:nil], @"should return false for disabled featureFlag");
+    XCTAssertEqual(featureFlagKey, expectedFeatureKey);
+    XCTAssertEqual(kUserId, expectedUserId);
+    OCMReject([optimizelyMock.notificationCenter sendNotifications:OPTLYNotificationTypeActivate args:[OCMArg any]]);
     
     // SendImpressionEvent() does get called.
     OCMVerify([optimizelyMock sendImpressionEventFor:[OCMArg any] experiment:decision.experiment variation:decision.variation userId:kUserId attributes:nil callback:nil]);
     
     OCMVerify([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]);
     [decisionServiceMock stopMocking];
+    [(id)optimizelyMock stopMocking];
 }
 
 // Should return true if the feature experiment variation’s `featureEnabled` property is true
@@ -702,11 +774,27 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     
     OCMStub([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]).andReturn(decision);
     
+    __block NSString *expectedFeatureKey = nil;
+    __block NSString *expectedUserId = nil;
+    Optimizely *_optimizely = OCMPartialMock(self.optimizely);
+    [_optimizely.notificationCenter addActivateNotificationListener:^(OPTLYExperiment * _Nonnull experiment, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, OPTLYVariation * _Nonnull variation, NSDictionary<NSString *,NSObject *> * _Nonnull event) {
+    }];
+    [_optimizely.notificationCenter addIsFeatureEnabledNotificationListener:^(NSString * _Nonnull featureKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureInfo) {
+        expectedFeatureKey = featureKey;
+        expectedUserId = userId;
+        XCTAssertNotNil(featureInfo[OPTLYNotificationEvent]);
+        XCTAssertEqual(featureInfo[OPTLYNotificationFeatureSource], DecisionSourceExperiment);
+        XCTAssertTrue([(NSNumber *)featureInfo[OPTLYNotificationIsEnabled] boolValue]);
+    }];
     XCTAssertTrue([self.optimizely isFeatureEnabled:featureFlagKey userId:kUserId attributes:nil], @"should return true for enabled featureFlag");
+    XCTAssertEqual(featureFlagKey, expectedFeatureKey);
+    XCTAssertEqual(kUserId, expectedUserId);
+    OCMReject([_optimizely.notificationCenter sendNotifications:OPTLYNotificationTypeActivate args:[OCMArg any]]);
     
     OCMVerify([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]);
     
     [decisionServiceMock stopMocking];
+    [(id)_optimizely stopMocking];
 }
 
 // Should return true if the user is bucketed into rollout experiment’s variation
@@ -723,10 +811,26 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     
     OCMStub([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]).andReturn(decision);
     
+    __block NSString *expectedFeatureKey = nil;
+    __block NSString *expectedUserId = nil;
+    Optimizely *_optimizely = OCMPartialMock(self.optimizely);
+    [_optimizely.notificationCenter addActivateNotificationListener:^(OPTLYExperiment * _Nonnull experiment, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, OPTLYVariation * _Nonnull variation, NSDictionary<NSString *,NSObject *> * _Nonnull event) {
+    }];
+    [_optimizely.notificationCenter addIsFeatureEnabledNotificationListener:^(NSString * _Nonnull featureKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureInfo) {
+        expectedFeatureKey = featureKey;
+        expectedUserId = userId;
+        XCTAssertNil(featureInfo[OPTLYNotificationEvent]);
+        XCTAssertEqual(featureInfo[OPTLYNotificationFeatureSource], DecisionSourceRollout);
+        XCTAssertTrue([(NSNumber *)featureInfo[OPTLYNotificationIsEnabled] boolValue]);
+    }];
     XCTAssertTrue([self.optimizely isFeatureEnabled:featureFlagKey userId:kUserId attributes:nil], @"should return true for enabled featureFlag");
+    XCTAssertEqual(featureFlagKey, expectedFeatureKey);
+    XCTAssertEqual(kUserId, expectedUserId);
+    OCMReject([_optimizely.notificationCenter sendNotifications:OPTLYNotificationTypeActivate args:[OCMArg any]]);
     
     OCMVerify([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]);
     [decisionServiceMock stopMocking];
+    [(id)_optimizely stopMocking];
 }
 
 // Should return false if the user is bucketed into rollout experiment’s variation
@@ -743,11 +847,27 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     
     OCMStub([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]).andReturn(decision);
     
+    __block NSString *expectedFeatureKey = nil;
+    __block NSString *expectedUserId = nil;
+    Optimizely *_optimizely = OCMPartialMock(self.optimizely);
+    [_optimizely.notificationCenter addActivateNotificationListener:^(OPTLYExperiment * _Nonnull experiment, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, OPTLYVariation * _Nonnull variation, NSDictionary<NSString *,NSObject *> * _Nonnull event) {
+    }];
+    [_optimizely.notificationCenter addIsFeatureEnabledNotificationListener:^(NSString * _Nonnull featureKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureInfo) {
+        expectedFeatureKey = featureKey;
+        expectedUserId = userId;
+        XCTAssertNil(featureInfo[OPTLYNotificationEvent]);
+        XCTAssertEqual(featureInfo[OPTLYNotificationFeatureSource], DecisionSourceRollout);
+        XCTAssertFalse([(NSNumber *)featureInfo[OPTLYNotificationIsEnabled] boolValue]);
+    }];
     XCTAssertFalse([self.optimizely isFeatureEnabled:featureFlagKey userId:kUserId attributes:nil], @"should return false for disabled featureFlag");
+    XCTAssertEqual(featureFlagKey, expectedFeatureKey);
+    XCTAssertEqual(kUserId, expectedUserId);
+    OCMReject([_optimizely.notificationCenter sendNotifications:OPTLYNotificationTypeActivate args:[OCMArg any]]);
     
     OCMVerify([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]);
     
     [decisionServiceMock stopMocking];
+    [(id)_optimizely stopMocking];
 }
 
 #pragma mark - GetFeatureVariable<Type> Tests
@@ -1229,11 +1349,19 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
 
 // should return empty feature array as no feature is enabled for user
 - (void)testGetEnabledFeaturesWithNoFeatureEnabledForUser {
-    id optimizelyMock = OCMPartialMock(self.optimizely);
+    Optimizely *optimizelyMock = OCMPartialMock(self.optimizely);
+    __block NSString *expectedUserId = nil;
+    
+    [optimizelyMock.notificationCenter addGetEnabledFeaturesNotificationListener:^(NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSArray<NSString *> * _Nullable enabledFeatures) {
+        expectedUserId = userId;
+        XCTAssertTrue(enabledFeatures.count == 0);
+    }];
+    
     OCMStub([optimizelyMock isFeatureEnabled:[OCMArg any] userId:kUserId attributes:self.attributes]).andReturn(false);
     XCTAssertEqual([optimizelyMock getEnabledFeatures:kUserId attributes:self.attributes].count, 0);
     OCMVerify([optimizelyMock isFeatureEnabled:[OCMArg any] userId:kUserId attributes:self.attributes]);
-    [optimizelyMock stopMocking];
+    XCTAssertEqual(kUserId, expectedUserId);
+    [(id)optimizelyMock stopMocking];
 }
 
 // should return feature array as some feature is enabled for user
@@ -1256,8 +1384,11 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     
     // should return empty feature array as userId is null
 - (void)testGetEnabledFeaturesWithNullUserId {
-    NSArray<NSString *> *features = [self.optimizely getEnabledFeatures:nil attributes:self.attributes];
+    Optimizely *optimizelyMock = OCMPartialMock(self.optimizely);
+    NSArray<NSString *> *features = [optimizelyMock getEnabledFeatures:nil attributes:self.attributes];
     XCTAssertTrue(features.count == 0);
+    OCMReject([optimizelyMock.notificationCenter sendNotifications:OPTLYNotificationTypeGetEnabledFeatures args:[OCMArg any]]);
+    [(id)optimizelyMock stopMocking];
 }
 
 #pragma mark - TypedAudiences Tests
