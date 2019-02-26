@@ -175,7 +175,9 @@
  *
  * @return           `YES` if the feature is enabled. `NO` if the feature is disabled or couldn't be found.
  */
-- (BOOL)isFeatureEnabled:(nullable NSString *)featureKey userId:(nullable NSString *)userId attributes:(nullable NSDictionary<NSString *, NSObject *> *)attributes;
+- (BOOL)isFeatureEnabled:(nullable NSString *)featureKey
+                  userId:(nullable NSString *)userId
+              attributes:(nullable NSDictionary<NSString *, NSObject *> *)attributes;
 
 /**
  * Evaluates the specified boolean feature variable and returns its value.

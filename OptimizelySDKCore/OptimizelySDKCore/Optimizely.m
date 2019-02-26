@@ -217,26 +217,30 @@
 
 #pragma mark - Feature Flag Methods
 
-- (BOOL)isFeatureEnabled:(NSString *)featureKey userId:(NSString *)userId attributes:(nullable NSDictionary<NSString *, NSObject *> *)attributes {
+- (void)evaluateIsFeatureEnabled:(NSString *)featureKey
+                          userId:(NSString *)userId
+                      attributes:(nullable NSDictionary<NSString *, NSObject *> *)attributes
+                        callback:(void (^)(BOOL isEnabled, NSMutableDictionary * _Nullable featureInfo))callback {
     BOOL result = false;
     NSMutableDictionary<NSString *, NSString *> *inputValues = [[NSMutableDictionary alloc] initWithDictionary:@{
-                                                                                                                 OPTLYNotificationUserIdKey:[self ObjectOrNull:userId],
                                                                                                                  OPTLYNotificationExperimentKey:[self ObjectOrNull:featureKey]}];
     NSDictionary <NSString *, NSString *> *logs = @{
-                                                    OPTLYNotificationUserIdKey:OPTLYLoggerMessagesFeatureDisabledUserIdInvalid,
                                                     OPTLYNotificationExperimentKey:OPTLYLoggerMessagesFeatureDisabledFlagKeyInvalid};
     
     if (![self validateStringInputs:inputValues logs:logs]) {
-        return result;
+        callback(result, nil);
+        return;
     }
     
     OPTLYFeatureFlag *featureFlag = [self.config getFeatureFlagForKey:featureKey];
     if ([featureFlag.key getValidString] == nil) {
         [self.logger logMessage:OPTLYLoggerMessagesFeatureDisabledFlagKeyInvalid withLevel:OptimizelyLogLevelError];
-        return result;
+        callback(result, nil);
+        return;
     }
     if (![featureFlag isValid:self.config]) {
-        return result;
+        callback(result, nil);
+        return;
     }
     
     OPTLYFeatureDecision *decision = [self.decisionService getVariationForFeature:featureFlag userId:userId attributes:attributes];
@@ -250,7 +254,7 @@
             NSString *logMessage = [NSString stringWithFormat:OPTLYLoggerMessagesFeatureEnabledNotExperimented, userId, featureKey];
             [self.logger logMessage:logMessage withLevel:OptimizelyLogLevelInfo];
         }
-
+        
         if (decision.variation.featureEnabled) {
             NSString *logMessage = [NSString stringWithFormat:OPTLYLoggerMessagesFeatureEnabled, featureKey, userId];
             [self.logger logMessage:logMessage withLevel:OptimizelyLogLevelInfo];
@@ -264,12 +268,39 @@
     
     [featureInfo setValue:[NSNumber numberWithBool:decision.variation.featureEnabled?:0] forKey:OPTLYNotificationIsEnabled];
     [featureInfo setValue:eventParams forKey:OPTLYNotificationEvent];
+    callback(result, featureInfo);
+}
+
+- (BOOL)isFeatureEnabled:(NSString *)featureKey
+                  userId:(NSString *)userId
+              attributes:(nullable NSDictionary<NSString *, NSObject *> *)attributes {
+    BOOL __block result = false;
+    NSMutableDictionary<NSString *, NSString *> *inputValues = [[NSMutableDictionary alloc] initWithDictionary:@{
+                                                                                                                 OPTLYNotificationUserIdKey:[self ObjectOrNull:userId]}];
+    NSDictionary <NSString *, NSString *> *logs = @{
+                                                    OPTLYNotificationUserIdKey:OPTLYLoggerMessagesFeatureDisabledUserIdInvalid};
+    
+    if (![self validateStringInputs:inputValues logs:logs]) {
+        return result;
+    }
+    
+    NSMutableDictionary * __block _featureInfo;
+    [self evaluateIsFeatureEnabled:featureKey userId:userId attributes:attributes callback:^(BOOL isEnabled, NSMutableDictionary * _Nullable featureInfo) {
+        result = isEnabled;
+        if (featureInfo != nil) {
+            _featureInfo = [featureInfo mutableCopy];
+        }
+    }];
+    
+    if (_featureInfo == nil) {
+        return result;
+    }
     
     NSMutableDictionary *args = [[NSMutableDictionary alloc] init];
     [args setValue:featureKey forKey:OPTLYNotificationFeatureKey];
     [args setValue:userId forKey:OPTLYNotificationUserIdKey];
     [args setValue:attributes forKey:OPTLYNotificationAttributesKey];
-    [args setValue:featureInfo forKey:OPTLYNotificationFeatureInfo];
+    [args setValue:_featureInfo forKey:OPTLYNotificationFeatureInfo];
     
     [_notificationCenter sendNotifications:OPTLYNotificationTypeIsFeatureEnabled args:args];
     return result;
@@ -426,9 +457,11 @@
     
     for (OPTLYFeatureFlag *feature in self.config.featureFlags) {
         NSString *featureKey = feature.key;
-        if ([self isFeatureEnabled:featureKey userId:userId attributes:attributes]) {
-            [enabledFeatures addObject:featureKey];
-        }
+        [self evaluateIsFeatureEnabled:featureKey userId:userId attributes:attributes callback:^(BOOL isEnabled, NSMutableDictionary * _Nullable featureInfo) {
+            if (isEnabled) {
+                [enabledFeatures addObject:featureKey];
+            }
+        }];
     }
     
     NSMutableDictionary *args = [[NSMutableDictionary alloc] init];
