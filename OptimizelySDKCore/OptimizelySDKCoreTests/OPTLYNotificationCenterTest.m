@@ -668,7 +668,6 @@ static NSString *const kAttributeKeyObject = @"dummy_object";
     OCMReject(_isFeatureEnabledListener);
     OCMReject(_getEnabledFeaturesListener);
     OCMReject(_getFeatureVariableListener);
-    
 }
 
 @end

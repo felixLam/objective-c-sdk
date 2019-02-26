@@ -120,12 +120,12 @@ extern NSString * _Nonnull const OPTLYNotificationFeatureVariableInfo;
 - (NSInteger)addIsFeatureEnabledNotificationListener:(IsFeatureEnabledListener _Nonnull )isFeatureEnabledListener;
     
 /**
- * Add a getEnabledFeature notification listener to the notification center.
+ * Add a getEnabledFeatures notification listener to the notification center.
  *
- * @param getEnabledFeatureListener - Notification to add.
+ * @param getEnabledFeaturesListener - Notification to add.
  * @return the notification id used to remove the notification. It is greater than 0 on success.
  */
-- (NSInteger)addGetEnabledFeaturesNotificationListener:(GetEnabledFeaturesListener _Nonnull )getEnabledFeatureListener;
+- (NSInteger)addGetEnabledFeaturesNotificationListener:(GetEnabledFeaturesListener _Nonnull )getEnabledFeaturesListener;
     
 /**
  * Add a getFeatureVariable notification listener to the notification center.

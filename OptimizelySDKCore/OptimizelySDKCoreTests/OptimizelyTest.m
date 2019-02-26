@@ -1170,6 +1170,8 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     NSString *variableKey = @"variableKey";
     NSString *variableType = FeatureVariableTypeBoolean;
     
+    id notificationMock = OCMPartialMock(self.optimizely.notificationCenter);
+    
     // Passing nil and empty feature key.
     XCTAssertNil([self.optimizely getFeatureVariableValueForType:variableType
                                                       featureKey:nil
@@ -1205,6 +1207,8 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
                                                      variableKey:variableKey
                                                           userId:@""
                                                       attributes:nil]);
+    
+    OCMReject([notificationMock sendNotifications:OPTLYNotificationTypeGetFeatureVariable args:[OCMArg any]]);
 }
 
 // Should return nil when feature key or variable key does not get found.
@@ -1213,6 +1217,7 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     NSString *variableKey = @"invalidVariable";
     NSString *variableType = FeatureVariableTypeBoolean;
     
+    id notificationMock = OCMPartialMock(self.optimizely.notificationCenter);
     XCTAssertNil([self.optimizely getFeatureVariableValueForType:variableType
                                                       featureKey:featureKey
                                                      variableKey:variableKey
@@ -1223,6 +1228,7 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
                                                      variableKey:variableKey
                                                           userId:kUserId
                                                       attributes:nil]);
+    OCMReject([notificationMock sendNotifications:OPTLYNotificationTypeGetFeatureVariable args:[OCMArg any]]);
 }
 
 // Should return nil when variable type is invalid.
@@ -1237,6 +1243,7 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     NSString *variableKeyBool = @"booleanVariable";
     NSString *variableKeyString = @"stringVariable";
     
+    id notificationMock = OCMPartialMock(self.optimizely.notificationCenter);
     XCTAssertNil([self.optimizely getFeatureVariableValueForType:variableTypeBool
                                                       featureKey:featureKeyString
                                                      variableKey:variableKeyString
@@ -1257,25 +1264,34 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
                                                      variableKey:variableTypeBool
                                                           userId:kUserId
                                                       attributes:nil]);
+    OCMReject([notificationMock sendNotifications:OPTLYNotificationTypeGetFeatureVariable args:[OCMArg any]]);
 }
 
 // Should return default value when feature is not enabled for the user.
 - (void)testGetFeatureVariableValueForTypeWithFeatureFlagNotEnabledForUser {
-    NSString *featureKey = @"stringSingleVariableFeature";
-    OPTLYFeatureFlag *featureFlag = [self.optimizely.config getFeatureFlagForKey:featureKey];
-    NSString *variableKey = @"stringVariable";
-    NSString *variableType = FeatureVariableTypeString;
-    NSString *expectedValue = @"wingardium leviosa";
+    NSString *_featureKey = @"stringSingleVariableFeature";
+    OPTLYFeatureFlag *featureFlag = [self.optimizely.config getFeatureFlagForKey:_featureKey];
+    NSString *_variableKey = @"stringVariable";
+    NSString *_variableType = FeatureVariableTypeString;
+    NSString *_expectedValue = @"wingardium leviosa";
     
     id decisionServiceMock = OCMPartialMock(self.optimizely.decisionService);
     OCMStub([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]).andReturn(nil);
-    
-    NSString *value = [self.optimizely getFeatureVariableValueForType:variableType
-                                                           featureKey:featureKey
-                                                          variableKey:variableKey
+    id notificationMock = OCMPartialMock(self.optimizely.notificationCenter);
+    [notificationMock addGetFeatureVariableNotificationListener:^(NSString * _Nonnull featureKey, NSString * _Nonnull variableKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureVariableInfo) {
+        XCTAssertEqual(_featureKey, featureKey);
+        XCTAssertEqual(_variableKey, variableKey);
+        XCTAssertEqual(kUserId, userId);
+        XCTAssertEqual(_variableType, featureVariableInfo[OPTLYNotificationVariableType]);
+        XCTAssertEqualObjects(_expectedValue, (NSString *)featureVariableInfo[OPTLYNotificationVariableValue]);
+        XCTAssertFalse([(NSNumber *)featureVariableInfo[OPTLYNotificationFeatureEnabled] boolValue]);
+    }];
+    NSString *value = [self.optimizely getFeatureVariableValueForType:_variableType
+                                                           featureKey:_featureKey
+                                                          variableKey:_variableKey
                                                                userId:kUserId
                                                            attributes:nil];
-    XCTAssertEqualObjects(expectedValue, value, @"should return %@ for featureFlag not enabled", expectedValue);
+    XCTAssertEqualObjects(_expectedValue, value, @"should return %@ for featureFlag not enabled", _expectedValue);
     
     OCMVerify([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]);
     [decisionServiceMock stopMocking];
@@ -1284,24 +1300,32 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
 // Should return default value when feature is enabled for the user
 // but variable usage does not get found for the variation.
 - (void)testGetFeatureVariableValueForTypeWithVaribaleNotInVariation {
-    NSString *featureKey = @"stringSingleVariableFeature";
-    OPTLYFeatureFlag *featureFlag = [self.optimizely.config getFeatureFlagForKey:featureKey];
+    NSString *_featureKey = @"stringSingleVariableFeature";
+    OPTLYFeatureFlag *featureFlag = [self.optimizely.config getFeatureFlagForKey:_featureKey];
     OPTLYExperiment *experiment = [self.optimizely.config getExperimentForKey:@"testExperimentMultivariate"];
     OPTLYVariation *differentVariation = [experiment getVariationForVariationId:@"6358043287"];
     OPTLYFeatureDecision *expectedDecision = [[OPTLYFeatureDecision alloc] initWithExperiment:experiment variation:differentVariation source:DecisionSourceExperiment];
-    NSString *variableKey = @"stringVariable";
-    NSString *variableType = FeatureVariableTypeString;
-    NSString *expectedValue = @"wingardium leviosa";
+    NSString *_variableKey = @"stringVariable";
+    NSString *_variableType = FeatureVariableTypeString;
+    NSString *_expectedValue = @"wingardium leviosa";
     
     id decisionServiceMock = OCMPartialMock(self.optimizely.decisionService);
     OCMStub([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]).andReturn(expectedDecision);
-    
-    NSString *value = [self.optimizely getFeatureVariableValueForType:variableType
-                                                           featureKey:featureKey
-                                                          variableKey:variableKey
+    id notificationMock = OCMPartialMock(self.optimizely.notificationCenter);
+    [notificationMock addGetFeatureVariableNotificationListener:^(NSString * _Nonnull featureKey, NSString * _Nonnull variableKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureVariableInfo) {
+        XCTAssertEqual(_featureKey, featureKey);
+        XCTAssertEqual(_variableKey, variableKey);
+        XCTAssertEqual(kUserId, userId);
+        XCTAssertEqual(_variableType, featureVariableInfo[OPTLYNotificationVariableType]);
+        XCTAssertEqualObjects(_expectedValue, (NSString *)featureVariableInfo[OPTLYNotificationVariableValue]);
+        XCTAssertFalse([(NSNumber *)featureVariableInfo[OPTLYNotificationFeatureEnabled] boolValue]);
+    }];
+    NSString *value = [self.optimizely getFeatureVariableValueForType:_variableType
+                                                           featureKey:_featureKey
+                                                          variableKey:_variableKey
                                                                userId:kUserId
                                                            attributes:nil];
-    XCTAssertEqualObjects(expectedValue, value, @"should return %@ for featureFlag enabled but dont used", expectedValue);
+    XCTAssertEqualObjects(_expectedValue, value, @"should return %@ for featureFlag enabled but dont used", _expectedValue);
     
     OCMVerify([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]);
     [decisionServiceMock stopMocking];
@@ -1310,24 +1334,32 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
 // Should return variable value from variation and log message when feature is enabled for the user
 // and variable usage has been found for the variation.
 - (void)testGetFeatureVariableValueForTypeWithFeatureFlagIsEnabledAndVaribaleUsed {
-    NSString *featureKey = @"doubleSingleVariableFeature";
-    OPTLYFeatureFlag *featureFlag = [self.optimizely.config getFeatureFlagForKey:featureKey];
-    NSString *variableKey = @"doubleVariable";
-    NSString *variableType = FeatureVariableTypeDouble;
-    NSString *expectedValue = @"42.42";
+    NSString *_featureKey = @"doubleSingleVariableFeature";
+    OPTLYFeatureFlag *featureFlag = [self.optimizely.config getFeatureFlagForKey:_featureKey];
+    NSString *_variableKey = @"doubleVariable";
+    NSString *_variableType = FeatureVariableTypeDouble;
+    NSString *_expectedValue = @"42.42";
     OPTLYExperiment *experiment = [self.optimizely.config getExperimentForKey:@"testExperimentDoubleFeature"];
     OPTLYVariation *variation = [experiment getVariationForVariationId:@"122239"];
     OPTLYFeatureDecision *expectedDecision = [[OPTLYFeatureDecision alloc] initWithExperiment:experiment variation:variation source:DecisionSourceExperiment];
     
     id decisionServiceMock = OCMPartialMock(self.optimizely.decisionService);
     OCMStub([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]).andReturn(expectedDecision);
-    
-    NSString *value = [self.optimizely getFeatureVariableValueForType:variableType
-                                                           featureKey:featureKey
-                                                          variableKey:variableKey
+    id notificationMock = OCMPartialMock(self.optimizely.notificationCenter);
+    [notificationMock addGetFeatureVariableNotificationListener:^(NSString * _Nonnull featureKey, NSString * _Nonnull variableKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureVariableInfo) {
+        XCTAssertEqual(_featureKey, featureKey);
+        XCTAssertEqual(_variableKey, variableKey);
+        XCTAssertEqual(kUserId, userId);
+        XCTAssertEqual(_variableType, featureVariableInfo[OPTLYNotificationVariableType]);
+        XCTAssertEqualObjects(_expectedValue, (NSString *)featureVariableInfo[OPTLYNotificationVariableValue]);
+        XCTAssertFalse([(NSNumber *)featureVariableInfo[OPTLYNotificationFeatureEnabled] boolValue]);
+    }];
+    NSString *value = [self.optimizely getFeatureVariableValueForType:_variableType
+                                                           featureKey:_featureKey
+                                                          variableKey:_variableKey
                                                                userId:kUserId
                                                            attributes:nil];
-    XCTAssertEqualObjects(expectedValue, value, @"should return %@ for featureFlag enabled but dont used", expectedValue);
+    XCTAssertEqualObjects(_expectedValue, value, @"should return %@ for featureFlag enabled but dont used", _expectedValue);
     
     OCMVerify([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]);
     [decisionServiceMock stopMocking];
@@ -1335,9 +1367,9 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
 
 // Verify that GetFeatureVariableValueForType returns correct variable value for rollout rule.
 - (void)testGetFeatureVariableValueForTypeWithRolloutRule {
-    NSString *featureKey = @"booleanSingleVariableFeature";
-    OPTLYFeatureFlag *featureFlag = [self.optimizely.config getFeatureFlagForKey:featureKey];
-    NSString *variableKey = @"booleanVariable";
+    NSString *_featureKey = @"booleanSingleVariableFeature";
+    OPTLYFeatureFlag *featureFlag = [self.optimizely.config getFeatureFlagForKey:_featureKey];
+    NSString *_variableKey = @"booleanVariable";
     BOOL expectedVariableValue = true;
     OPTLYExperiment *experiment = [self.optimizely.config getExperimentForKey:@"177770"];
     OPTLYVariation *variation = [experiment getVariationForVariationId:@"177771"];
@@ -1345,9 +1377,17 @@ static NSString * const kAttributeKeyBrowserIsDefault = @"browser_is_default";
     
     id decisionServiceMock = OCMPartialMock(self.optimizely.decisionService);
     OCMStub([decisionServiceMock getVariationForFeature:featureFlag userId:kUserId attributes:nil]).andReturn(expectedDecision);
-    
-    BOOL value = [self.optimizely getFeatureVariableBoolean:featureKey
-                                                variableKey:variableKey
+    id notificationMock = OCMPartialMock(self.optimizely.notificationCenter);
+    [notificationMock addGetFeatureVariableNotificationListener:^(NSString * _Nonnull featureKey, NSString * _Nonnull variableKey, NSString * _Nonnull userId, NSDictionary<NSString *,NSObject *> * _Nullable attributes, NSDictionary<NSString *,NSObject *> * _Nullable featureVariableInfo) {
+        XCTAssertEqual(_featureKey, featureKey);
+        XCTAssertEqual(_variableKey, variableKey);
+        XCTAssertEqual(kUserId, userId);
+        XCTAssertEqual(FeatureVariableTypeBoolean, featureVariableInfo[OPTLYNotificationVariableType]);
+        XCTAssertEqual(expectedVariableValue, [(NSNumber *)featureVariableInfo[OPTLYNotificationVariableValue] boolValue]);
+        XCTAssertFalse([(NSNumber *)featureVariableInfo[OPTLYNotificationFeatureEnabled] boolValue]);
+    }];
+    BOOL value = [self.optimizely getFeatureVariableBoolean:_featureKey
+                                                variableKey:_variableKey
                                                      userId:kUserId
                                                  attributes:nil];
     XCTAssertEqual(expectedVariableValue, value, @"should return %@ for featureFlag enabled but dont used", expectedVariableValue ? @"true" : @"false");

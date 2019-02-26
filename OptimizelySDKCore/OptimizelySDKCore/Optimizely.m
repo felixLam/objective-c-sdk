@@ -263,8 +263,10 @@
         [featureInfo setValue:decision.source forKey:OPTLYNotificationFeatureSource];
     }
     
-    NSString *logMessage = [NSString stringWithFormat:OPTLYLoggerMessagesFeatureDisabled, featureKey, userId];
-    [self.logger logMessage:logMessage withLevel:OptimizelyLogLevelInfo];
+    if (!result) {
+        NSString *logMessage = [NSString stringWithFormat:OPTLYLoggerMessagesFeatureDisabled, featureKey, userId];
+        [self.logger logMessage:logMessage withLevel:OptimizelyLogLevelInfo];
+    }
     
     [featureInfo setValue:[NSNumber numberWithBool:decision.variation.featureEnabled?:0] forKey:OPTLYNotificationIsEnabled];
     [featureInfo setValue:eventParams forKey:OPTLYNotificationEvent];
